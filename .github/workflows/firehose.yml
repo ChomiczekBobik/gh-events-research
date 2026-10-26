@@ -1,0 +1,30 @@
+name: firehose
+on:
+  schedule:
+    - cron: "23 * * * *"     # каждый час — 24/7 (публичный репо = безлимит минут)
+  workflow_dispatch:          # ручной запуск из вкладки Actions
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: run one cycle
+        env:
+          HUNT_GITHUB_TOKEN: ${{ secrets.HUNT_GITHUB_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          printf 'GITHUB_TOKEN=%s\nTG_BOT_TOKEN=%s\nTG_CHAT_ID=%s\n' \
+            "$HUNT_GITHUB_TOKEN" "$TG_BOT_TOKEN" "$TG_CHAT_ID" > .env
+          python -u gh_firehose.py --once
+      - name: upload live keys
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live_keys
+          path: live_keys.json
+          if-no-files-found: ignore
