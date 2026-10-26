@@ -193,7 +193,7 @@ def run_cycle(hours_ago):
 
 def main():
     if "--once" in sys.argv:
-        run_cycle(2)
+        run_cycle(4)  # запас 4 часа: дамп точно дописан
         return
     # бесконечный цикл: обрабатываем свежие часы непрерывно
     while True:
