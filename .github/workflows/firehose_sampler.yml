@@ -1,0 +1,23 @@
+name: firehose-sampler
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # каждые 15 минут — горячий срез
+  workflow_dispatch:
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: sampler
+        env:
+          HUNT_GITHUB_TOKEN: ${{ secrets.HUNT_GITHUB_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          printf 'GITHUB_TOKEN=%s\nTG_BOT_TOKEN=%s\nTG_CHAT_ID=%s\n' \
+            "$HUNT_GITHUB_TOKEN" "$TG_BOT_TOKEN" "$TG_CHAT_ID" > .env
+          python -u gh_firehose.py --sampler
