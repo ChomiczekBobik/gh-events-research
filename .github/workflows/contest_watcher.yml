@@ -1,0 +1,53 @@
+name: contest-watcher
+on:
+  schedule:
+    - cron: "41 */4 * * *"   # каждые 4 часа
+  workflow_dispatch:
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: scan contests
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          python - <<'EOF'
+          import json, os, re, urllib.request
+          seen_file = "contests_seen.json"
+          seen = []
+          if os.path.exists(seen_file):
+              seen = json.loads(open(seen_file).read())
+          def fetch(url):
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              return urllib.request.urlopen(req, timeout=30).read().decode("utf-8", errors="replace")
+          found = []
+          try:
+              html = fetch("https://cantina.xyz/opportunities/competitions")
+              for m in re.finditer(r'([A-Za-z0-9][A-Za-z0-9 .\-_]{2,59})\s+Competition', html):
+                  found.append("Cantina: " + m.group(1).strip())
+          except Exception as e:
+              print("cantina:", e)
+          try:
+              html = fetch("https://code4rena.com/audits")
+              for m in re.finditer(r'"title":"([^"]+)"', html):
+                  found.append("C4: " + m.group(1))
+          except Exception as e:
+              print("c4:", e)
+          found = sorted(set(found))
+          new = [c for c in found if c not in seen]
+          print(f"известно: {len(found)}, новых: {len(new)}")
+          if new:
+              text = "НОВЫЕ КОНТЕСТЫ:\n" + "\n".join(new[:20])
+              tok, chat = os.environ["TG_BOT_TOKEN"], os.environ["TG_CHAT_ID"]
+              data = json.dumps({"chat_id": chat, "text": text}).encode()
+              req = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage",
+                                           data=data, headers={"Content-Type": "application/json"})
+              urllib.request.urlopen(req, timeout=15)
+              json.dump(sorted(set(seen + new)), open(seen_file, "w"))
+          EOF
