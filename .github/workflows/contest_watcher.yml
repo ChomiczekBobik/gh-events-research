@@ -7,6 +7,8 @@ on:
 jobs:
   watch:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,11 +45,15 @@ jobs:
           new = [c for c in found if c not in seen]
           print(f"известно: {len(found)}, новых: {len(new)}")
           if new:
-              text = "НОВЫЕ КОНТЕСТЫ:\n" + "\n".join(new[:20])
-              tok, chat = os.environ["TG_BOT_TOKEN"], os.environ["TG_CHAT_ID"]
-              data = json.dumps({"chat_id": chat, "text": text}).encode()
-              req = urllib.request.Request(f"https://api.telegram.org/bot{tok}/sendMessage",
-                                           data=data, headers={"Content-Type": "application/json"})
-              urllib.request.urlopen(req, timeout=15)
-              json.dump(sorted(set(seen + new)), open(seen_file, "w"))
+              print("НОВЫЕ КОНТЕСТЫ:")
+              print("\n".join(new[:20]))
+          # сохраняем базу в репо (видно в файле contests_seen.json)
+          json.dump(sorted(set(seen + found)), open(seen_file, "w"))
           EOF
+      - name: commit seen list
+        run: |
+          git config user.name "watcher-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add contests_seen.json
+          git commit -m "contests update" || echo "без изменений"
+          git push
