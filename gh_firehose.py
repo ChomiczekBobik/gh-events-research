@@ -127,13 +127,24 @@ def run_cycle(hours_ago):
     url = f"https://data.gharchive.org/{ts:%Y-%m-%d}-{ts.hour}.json.gz"
     print(f"[*] качаю {url}", flush=True)
 
-    try:
-        resp = http(url, {"User-Agent": "ahmia-firehose"}, 60)
-    except Exception as e:
-        print(f"[!] дамп недоступен: {e}", flush=True)
+    raw = None
+    for attempt in range(3):
+        try:
+            resp = http(url, {"User-Agent": "ahmia-firehose"}, 120)
+            data = resp.read()
+            expected = resp.headers.get("Content-Length")
+            if expected is None or len(data) == int(expected):
+                raw = data
+                break
+            print(f"[!] урезанная загрузка ({len(data)}/{expected}), ретрай {attempt+1}", flush=True)
+        except Exception as e:
+            print(f"[!] попытка {attempt+1}: {e}", flush=True)
+        time.sleep(10)
+    if raw is None:
+        print("[!] дамп недоступен целиком, пропуск часа", flush=True)
         return
 
-    gz = gzip.GzipFile(fileobj=io.BytesIO(resp.read()))
+    gz = gzip.GzipFile(fileobj=io.BytesIO(raw))
     pushes = []  # (repo, before, head)
     n_events = 0
     for line in io.TextIOWrapper(gz, encoding="utf-8", errors="replace"):
