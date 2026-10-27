@@ -203,15 +203,19 @@ def run_cycle(hours_ago):
     print(f"[*] проверено ключей: {len(seen)}, ЖИВЫХ новых: {len(new)}", flush=True)
 
 def run_sampler():
-    """Быстрый канал: срез свежих пушей из /events (почти реальное время).
-    Ловит ключи в первые минуты — до автоотзыва. Покрытие частичное, зато горячее."""
-    print("[*] sampler: срез свежих пушей", flush=True)
-    try:
-        r = http("https://api.github.com/events?per_page=100", timeout=20)
-        events = json.loads(r.read())
-    except Exception as e:
-        print(f"[!] events: {e}", flush=True)
-        return
+    """Главный канал: /events API, 10 страниц за проход (до 1000 событий)."""
+    print("[*] sampler: срез свежих пушей (deep)", flush=True)
+    events = []
+    for page in range(1, 11):
+        try:
+            r = http(f"https://api.github.com/events?per_page=100&page={page}", timeout=20)
+            chunk = json.loads(r.read())
+            if not chunk:
+                break
+            events.extend(chunk)
+        except Exception as e:
+            print(f"[!] страница {page}: {e}", flush=True)
+            break
     live, seen = [], set()
     tested = 0
     for ev in events:
