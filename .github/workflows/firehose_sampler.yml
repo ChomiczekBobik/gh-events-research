@@ -1,7 +1,7 @@
 name: firehose-sampler
 on:
   schedule:
-    - cron: "*/15 * * * *"   # каждые 15 минут — горячий срез
+    - cron: "*/10 * * * *"   # каждые 15 минут — горячий срез
   workflow_dispatch:
 
 jobs:
