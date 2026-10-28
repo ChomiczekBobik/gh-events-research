@@ -1,0 +1,33 @@
+name: multi-hunter
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # каждые 30 минут: commits + gists + gitlab
+  workflow_dispatch:
+
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: hunt
+        env:
+          HUNT_GITHUB_TOKEN: ${{ secrets.HUNT_GITHUB_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          printf 'GITHUB_TOKEN=%s\nTG_BOT_TOKEN=%s\nTG_CHAT_ID=%s\n' \
+            "$HUNT_GITHUB_TOKEN" "$TG_BOT_TOKEN" "$TG_CHAT_ID" > .env
+          python -u multi_hunter.py
+      - name: persist seen
+        run: |
+          git config user.name "hunter-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add hunter_seen.json 2>/dev/null || true
+          git commit -m "hunter state" 2>/dev/null || echo "no changes"
+          git pull --rebase 2>/dev/null || true
+          git push 2>/dev/null || true
+    permissions:
+      contents: write
