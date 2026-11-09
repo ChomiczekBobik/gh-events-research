@@ -309,17 +309,30 @@ function newNight(n) {
 function setState(s) { state = s; stateT = 0; }
 
 // ---------------------------------------------------------------- key handling
-// cheat: Z, O, V in a row during a night -> skip to 6 AM (next night). Uses key codes, so it works on any layout.
-const CHEAT = ['KeyZ', 'KeyO', 'KeyV'];
-let cheatBuf = [], cheatT = 0;
+// cheats (key codes, so they work on any layout; max 2 s between presses):
+//   Z O V       — during a night: skip to 6 AM; during a minigame: skip it
+//   H O M K A   — jump to the next minigame (1 → 2 → … → 5 → 1)
+const CHEATS = { zov: ['KeyZ', 'KeyO', 'KeyV'], homka: ['KeyH', 'KeyO', 'KeyM', 'KeyK', 'KeyA'] };
+let cheatBuf = [], cheatT = 0, muteAtH = null;
 function checkCheat(code) {
   const now = performance.now();
   if (now - cheatT > 2000) cheatBuf = [];
   cheatT = now;
-  cheatBuf = [...cheatBuf, code].slice(-CHEAT.length);
-  if (cheatBuf.join() !== CHEAT.join()) return false;
-  if (state === 'night' && G) { cheatBuf = []; win(); return true; }
-  if (state === 'mini') { cheatBuf = []; MG.finish(); return true; }
+  if (code === 'KeyH') muteAtH = muted; // M inside HOMKA toggles mute; restore it when the code completes
+  cheatBuf = [...cheatBuf, code].slice(-5);
+  const is = c => cheatBuf.slice(-c.length).join() === c.join();
+  if (is(CHEATS.homka)) {
+    cheatBuf = [];
+    if (muteAtH !== null && muted !== muteAtH) muted = muteAtH;
+    const n = state === 'mini' && MG.s ? MG.s.n % 5 + 1 : (state === 'night' && G ? G.night : 1);
+    if (state === 'mini') MG.jump(n);
+    else { stopAllLoops(); MG.start(clamp(n, 1, 5), () => setState('menu')); setState('mini'); }
+    return true;
+  }
+  if (is(CHEATS.zov)) {
+    if (state === 'night' && G) { cheatBuf = []; win(); return true; }
+    if (state === 'mini') { cheatBuf = []; MG.finish(); return true; }
+  }
   return false;
 }
 

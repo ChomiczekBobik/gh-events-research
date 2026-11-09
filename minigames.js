@@ -366,5 +366,7 @@ const MG = (() => {
       if (s.pt > 0.6) { loop('mg_drone', false); loop('mg_ending', false); S_ = null; const d = onDone; onDone = null; d && d(); }
     }
   }
-  return { start, frame, key, finish, get active() { return !!S_; }, get s() { return S_; } };
+  // switch to another minigame but keep where the current one was going to return to
+  function jump(n) { const d = onDone; loop('mg_ending', false); start(n, d); }
+  return { start, jump, frame, key, finish, get active() { return !!S_; }, get s() { return S_; } };
 })();
