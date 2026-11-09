@@ -43,7 +43,7 @@ for (const k of ['homka_walk', 'homka_crawl', 'homka_crawl2', 'homka_crouch', 'h
 for (let i = 0; i < 23; i++) addImg('ms' + i, `mell/scare${i}.webp`);
 for (let i = 0; i < 3; i++) addImg('mi' + i, `mell/idle${i}.webp`);
 
-const SND_NAMES = ['ambient', 'blip', 'chimes', 'door', 'fan', 'hangup', 'knock', 'light', 'mell_scare', 'musicbox', 'powerout',
+const SND_NAMES = ['menu', 'blip', 'chimes', 'door', 'fan', 'hangup', 'knock', 'light', 'mell_scare', 'musicbox', 'powerout',
   'ring', 'scream', 'shutter', 'static', 'steps', 'tablet_down', 'tablet_up', 'vent', 'wind', 'sting',
   'mg_jump', 'mg_pick', 'mg_scan', 'mg_err', 'mg_win', 'mg_drone', 'mg_ending'];
 const SND_WAV = new Set(['fan', 'light', 'static', 'mg_drone']); // loops: wav has no mp3 padding gap
@@ -995,7 +995,7 @@ function drawMenu(dt) {
     text((menu.hover === i ? '>> ' : '   ') + label, 90, y, 50, '#fff');
   });
   text('ПРОБЕЛ — камеры   A / D — двери   Q / E — свет   F / R — вентиляция   W — шкатулка (CAM 10)   M — звук', 90, H - 30, 20, '#555');
-  loop('ambient', true, 0.7);
+  loop('menu', true, 0.55);
   loop('static', true, 0.08);
 
   for (const p of clickQueue) {

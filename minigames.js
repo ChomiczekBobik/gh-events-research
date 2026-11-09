@@ -13,6 +13,7 @@ const MG = (() => {
     h: '#6b4a2b', s: '#e8b894', K: '#141414', R: '#c8102e', p: '#202020', b: '#3a3a3a', M: '#a0605a',
     B: '#7fb7e6', w: '#eeeeee', g: '#8a8a8a', W: '#f2efe8', n: '#ff8fa0', Y: '#e0bb6a', r: '#b0202a',
     G: '#1f7a3a', c: '#6b3d1f', y: '#e8c040', o: '#e07a20', L: '#4aa0e0', e: '#3a8a2a',
+    Z: '#ffd23a', z: '#b8860b', P: '#a040ff', q: '#5a1a9a', X: '#fff6b0',
   };
   function sprite(rows) {
     const w = Math.max(...rows.map(r => r.length));
@@ -43,6 +44,8 @@ const MG = (() => {
       'LLLLLLLLLL', 'sLLLLLLLLs', '.pppppppp.', '.ppp..ppp.', '.bbb..bbb.']),
     bar: sprite(['cccccccc', 'cyRRRRyc', 'cyRRRRyc', 'cccccccc']),
     coffee: sprite(['.WWWW.', 'WWWWWW', '.WWWW.', '.WGGW.', '.GWWG.', '.WGGW.', '.cccc.', '.WWWW.']),
+    goldcoffee: sprite(['.ZZZZ.', 'ZXZZZZ', '.ZZZZ.', '.ZzzZ.', '.zZZz.', '.ZzzZ.', '.zzzz.', '.ZZZZ.']),
+    purplebar: sprite(['qqqqqqqq', 'qXPPPPXq', 'qXPPPPXq', 'qqqqqqqq']),
     milk: sprite(['.WW.', '.WW.', 'WWWW', 'WLLW', 'WLLW', 'WWWW', 'WWWW']),
     bread: sprite(['.oooooo.', 'oyyyyyyo', 'oyyyyyyo', '.oooooo.']),
     apple: sprite(['..e..', '.rRr.', 'RRRRR', 'RRRRR', '.RRR.']),
@@ -56,11 +59,18 @@ const MG = (() => {
     else g.drawImage(spr, Math.round(x), Math.round(y), spr.width * scale, spr.height * scale);
     g.restore();
   }
-  function ptext(s, x, y, col = '#fff', align = 'left', size = 8) {
-    g.font = `bold ${size}px "Courier New", monospace`;
-    g.textAlign = align; g.textBaseline = 'top';
-    g.fillStyle = '#000'; g.fillText(s, x + 1, y + 1);
-    g.fillStyle = col; g.fillText(s, x, y);
+  // Text is not drawn into the 320x180 buffer (upscaling makes it blurry): it is queued in low-res
+  // coordinates and drawn crisply on the full-res canvas after the pixel art is scaled up.
+  let textQ = [];
+  function ptext(s, x, y, col = '#fff', align = 'left', size = 8) { textQ.push([s, x, y, col, align, size]); }
+  function flushText() {
+    for (const [s, x, y, col, align, size] of textQ) {
+      ctx.font = `bold ${size * S}px "Courier New", Consolas, monospace`;
+      ctx.textAlign = align; ctx.textBaseline = 'top';
+      ctx.fillStyle = '#000'; ctx.fillText(s, x * S + S, y * S + S);
+      ctx.fillStyle = col; ctx.fillText(s, x * S, y * S);
+    }
+    textQ = [];
   }
   const L = () => keys.has('ArrowLeft') || keys.has('KeyA');
   const R = () => keys.has('ArrowRight') || keys.has('KeyD');
@@ -71,13 +81,26 @@ const MG = (() => {
 
   // ------------------------------------------------------------ 1: Homka collects bars & coffee (platformer)
   const G1 = {
-    title: 'СОБЕРИ 10 БАТОНЧИКОВ И КОФЕ',
+    title: 'СОБЕРИ 67 БАТОНЧИКОВ И КОФЕ',
+    goal: 67,
     plats: [[0, 164, 320], [24, 134, 64], [128, 120, 64], [232, 134, 64], [70, 96, 52], [198, 96, 52], [124, 70, 72], [16, 62, 44], [260, 62, 44]],
-    init(s) { Object.assign(s, { x: 150, y: 132, vx: 0, vy: 0, ground: true, flip: false, items: [], got: 0 }); while (s.items.length < 3) this.spawn(s); },
+    init(s) { Object.assign(s, { x: 150, y: 132, vx: 0, vy: 0, ground: true, flip: false, items: [], got: 0, pops: [] }); while (s.items.length < 3) this.spawn(s); },
     spawn(s) {
-      const p = this.plats[1 + Math.floor(Math.random() * (this.plats.length - 1))];
-      const k = Math.random() < 0.5 ? 'bar' : 'coffee';
-      s.items.push({ x: p[0] + 6 + Math.random() * (p[2] - 24), y: p[1] - (k === 'bar' ? 10 : 18), k });
+      // 10% golden coffee / purple bar worth +5
+      const rare = Math.random() < 0.1;
+      const k = Math.random() < 0.5 ? (rare ? 'purplebar' : 'bar') : (rare ? 'goldcoffee' : 'coffee');
+      const spr = SPR[k];
+      const w = spr.width * 2, h = spr.height * 2;
+      // never right on (or next to) the player, never on top of another item
+      const pcx = s.x + 10, pcy = s.y + 16;
+      for (let tries = 0; tries < 60; tries++) {
+        const p = this.plats[Math.floor(Math.random() * this.plats.length)];
+        const x = p[0] + 4 + Math.random() * (p[2] - w - 8), y = p[1] - h - 2;
+        if (Math.hypot(x + w / 2 - pcx, y + h / 2 - pcy) < 80) continue;
+        if (s.items.some(it => Math.abs(it.x - x) < 24 && Math.abs(it.y - y) < 20)) continue;
+        s.items.push({ x, y, k, w, h, v: rare ? 5 : 1 });
+        return;
+      }
     },
     key(s, code) {
       if (['Space', 'KeyW', 'ArrowUp'].includes(code) && s.ground) { s.vy = -205; s.ground = false; play('mg_jump', 0.5); }
@@ -95,12 +118,18 @@ const MG = (() => {
       }
       const me = { x: s.x + 2, y: s.y, w: 16, h: 32 };
       s.items = s.items.filter(it => {
-        const box = { x: it.x, y: it.y, w: it.k === 'bar' ? 16 : 12, h: it.k === 'bar' ? 8 : 16 };
-        if (hit(me, box)) { s.got++; play('mg_pick', 0.6); return false; }
+        if (hit(me, it)) {
+          s.got = Math.min(this.goal, s.got + it.v);
+          s.pops.push({ x: it.x, y: it.y, v: it.v, t: 0 });
+          play(it.v > 1 ? 'mg_win' : 'mg_pick', 0.6);
+          return false;
+        }
         return true;
       });
-      while (s.items.length < 3 && s.got + s.items.length < 10) this.spawn(s);
-      if (s.got >= 10) return 'win';
+      for (const p of s.pops) p.t += dt;
+      s.pops = s.pops.filter(p => p.t < 0.8);
+      if (s.got >= this.goal) return 'win';
+      while (s.items.length < 3) { const n = s.items.length; this.spawn(s); if (s.items.length === n) break; }
     },
     draw(s) {
       g.fillStyle = '#0d0b14'; g.fillRect(0, 0, LW, LH);
@@ -108,9 +137,17 @@ const MG = (() => {
       g.fillStyle = '#7a1018'; g.fillRect(0, 28, LW, 2); g.fillRect(0, 42, LW, 2);
       ptext('СКЛАД ZOVKA', 160, 12, '#c8a040', 'center');
       for (const [x, y, w] of this.plats) { g.fillStyle = '#5a3a1a'; g.fillRect(x, y, w, 3); g.fillStyle = '#2a2a2a'; g.fillRect(x, y + 3, w, 2); }
-      for (const it of s.items) put(SPR[it.k], it.x, it.y + Math.sin(s.t * 4 + it.x) * 1.5);
+      for (const it of s.items) {
+        const bob = Math.sin(s.t * 4 + it.x) * 1.5;
+        if (it.v > 1 && Math.floor(s.t * 6) % 2) { // rare items sparkle
+          g.fillStyle = it.k === 'goldcoffee' ? '#fff6b0' : '#e0b0ff';
+          g.fillRect(it.x - 2, it.y + bob - 2, 2, 2); g.fillRect(it.x + it.w, it.y + bob + it.h - 2, 2, 2);
+        }
+        put(SPR[it.k], it.x, it.y + bob);
+      }
       put(SPR.homka[s.ground && s.vx ? Math.floor(s.t * 8) % 2 : 0], s.x, s.y, 2, s.flip);
-      ptext(`${s.got}/10`, 8, 6, '#fff');
+      for (const p of s.pops) ptext(`+${p.v}`, p.x + 4, p.y - 6 - p.t * 20, p.v > 1 ? '#ffd23a' : '#fff');
+      ptext(`${s.got}/${this.goal}`, 8, 6, '#fff');
     },
   };
 
@@ -359,6 +396,7 @@ const MG = (() => {
     if (cur.overlay) cur.overlay(s);
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     for (let y = 0; y < H; y += S) ctx.fillRect(0, y, W, 2);
+    flushText();
     if (s.phase === 'intro' && s.pt < 0.35) staticOverlay(1 - s.pt / 0.35);
     if (Math.random() < 0.01) staticOverlay(0.25); // FNaF 2 minigame glitch
     if (s.phase === 'out') {
@@ -368,5 +406,5 @@ const MG = (() => {
   }
   // switch to another minigame but keep where the current one was going to return to
   function jump(n) { const d = onDone; loop('mg_ending', false); start(n, d); }
-  return { start, jump, frame, key, finish, get active() { return !!S_; }, get s() { return S_; } };
+  return { start, jump, frame, key, finish, g1: G1, get active() { return !!S_; }, get s() { return S_; } };
 })();
