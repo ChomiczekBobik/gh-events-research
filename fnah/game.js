@@ -444,11 +444,11 @@ function updateAI(dt) {
   // Lyudmila — music box on CAM 3
   const l = G.lyud;
   if (!l.out) {
-    const winding = G.tablet && G.tabF >= 11 && G.cam === 3 && (keys.has('KeyW') || (mouse.down && inRect(mouse, ...BOX_BTN)));
+    const winding = G.tablet && G.tabF >= 11 && G.cam === BOX_CAM && (keys.has('KeyW') || (mouse.down && inRect(mouse, ...BOX_BTN)));
     G.winding = winding;
     if (winding) l.box = Math.min(100, l.box + 22 * dt);
     else l.box -= G.cfg.box * dt;
-    if (l.box <= 0) { l.box = 0; l.out = true; l.outT = 0; play('musicbox', 0.9); camGlitchIf(3); }
+    if (l.box <= 0) { l.box = 0; l.out = true; l.outT = 0; play('musicbox', 0.9); camGlitchIf(3, BOX_CAM); }
   } else {
     G.winding = false;
     l.outT += dt;
