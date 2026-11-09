@@ -25,9 +25,11 @@ NUM = {"0": "ноль", "3": "три", "5": "пять", "6": "шесть", "7": 
        "10": "десять", "11": "одиннадцать", "24": "двадцать четыре", "40": "сорок", "2": "два", "4": "четыре", "1": "один"}
 
 # who -> (voice, length_scale, ffmpeg filter)
-PHONE = "highpass=f=320,lowpass=f=3300,acompressor=threshold=-18dB:ratio=4,volume=1.6"
+# light old-phone colour: gentle band-limit + slight saturation, then loudness-normalised so it stays clear
+PHONE = "highpass=f=180,lowpass=f=5200,equalizer=f=1800:t=q:w=1.2:g=4,asoftclip=type=tanh"
+LOUD = ",loudnorm=I=-13:TP=-1:LRA=7"
 SPEAKERS = {
-    "starshiy": ("dmitri", 1.0, PHONE + ",aecho=0.8:0.3:20:0.15"),
+    "starshiy": ("dmitri", 1.0, PHONE + ",aecho=0.8:0.2:15:0.08"),
     # ghost: slowed, lower, long echo, through the same phone line
     "lyud": ("irina", 1.35, "asetrate=22050*0.86,aresample=22050,aecho=0.8:0.7:250|430:0.45|0.3,"
              "tremolo=f=5:d=0.25," + PHONE),
@@ -65,8 +67,8 @@ for night, lines in story["calls"].items():
                         "--length_scale", str(scale), "--sentence_silence", "0.25"],
                        input=text.encode(), check=True, stderr=subprocess.DEVNULL)
         out = os.path.join(OUT, f"{night}_{i}.mp3")
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", raw, "-af", flt + ",apad=pad_dur=0.15",
-                        "-ac", "1", "-ar", "22050", "-b:a", "48k", out], check=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", raw, "-af", flt + LOUD + ",apad=pad_dur=0.15",
+                        "-ac", "1", "-ar", "22050", "-b:a", "64k", out], check=True)
         index[f"{night}_{i}"] = dur(out)
         print(night, i, who, index[f"{night}_{i}"], text[:60])
 
