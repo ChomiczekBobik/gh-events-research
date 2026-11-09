@@ -127,15 +127,32 @@ n = 2 * SR
 st = bandnoise(n, 800, 9000) * (0.6 + 0.4 * np.abs(np.sin(2 * np.pi * 3.1 * t(2))))
 write("static", norm(st, 0.35), fmt="wav", sr=22050)
 
-# jumpscare scream: detuned wobbling saws, distorted
-d = 1.7
+# jumpscare scream (FNaF-style): bass impact + chaotic metallic screech + roaring noise, hard-clipped
+d = 2.0
 x = t(d)
-f0 = 520 + 260 * np.sin(2 * np.pi * 11 * x) + 300 * x
-ph = np.cumsum(f0) / SR
-saw = sum(((ph * k * r) % 1.0) * 2 - 1 for k, r in [(1, 1.0), (1, 1.013), (2, 0.991), (3, 1.007)])
-sc = np.tanh((saw * 0.6 + bandnoise(len(x), 500, 9000) * 1.2) * 4)
-sc *= np.minimum(1, x * 40) * np.clip((d - x) * 3, 0, 1)
-write("scream", norm(sc, 0.95))
+n = len(x)
+# 1) impact: sub drop + noise slam
+impact = np.sin(2 * np.pi * np.cumsum(90 * np.exp(-x * 6) + 32) / SR) * env(n, 0.001, 3.5) * 1.6
+impact += bandnoise(n, 40, 4000) * env(n, 0.0005, 18) * 1.2
+# 2) screech: detuned saws with jittery FM, gliding up, ring-modulated
+jit = np.cumsum(rng.standard_normal(n)) / SR * 900
+jit -= np.linspace(jit[0], jit[-1], n)
+glide = 1 + 0.35 * x
+screech = np.zeros(n)
+for base, det in [(740, 1.0), (747, 0.97), (1110, 1.013), (1490, 0.991), (2230, 1.02)]:
+    ph = np.cumsum((base * det * glide + jit + 140 * np.sin(2 * np.pi * 23 * x)) / SR)
+    screech += (ph % 1.0) * 2 - 1
+screech *= np.sin(2 * np.pi * 71 * x) * 0.5 + 0.6  # ring mod -> metallic
+# 3) roar: low growl noise with tremolo
+roar = bandnoise(n, 90, 900) * (0.6 + 0.4 * np.sin(2 * np.pi * 31 * x))
+# 4) crushed high hiss
+hiss = bandnoise(n, 3000, 11000)
+sc = screech * 0.55 + roar * 0.9 + hiss * 0.25
+sc = np.tanh(sc * 6)  # hard distortion
+sc = np.round(sc * 24) / 24  # bit crush
+sc *= np.clip(x * 400, 0, 1) * np.clip((d - x) * 2.2, 0, 1)
+sc = sc * 0.85 + impact * 0.7
+write("scream", norm(np.tanh(sc * 1.5), 0.98))
 
 # window-scare sting: short dissonant stab
 x = t(0.9)
