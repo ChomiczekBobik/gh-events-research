@@ -308,7 +308,20 @@ function newNight(n) {
 function setState(s) { state = s; stateT = 0; }
 
 // ---------------------------------------------------------------- key handling
+// cheat: Z, O, V in a row during a night -> skip to 6 AM (next night). Uses key codes, so it works on any layout.
+const CHEAT = ['KeyZ', 'KeyO', 'KeyV'];
+let cheatBuf = [], cheatT = 0;
+function checkCheat(code) {
+  const now = performance.now();
+  if (now - cheatT > 2000) cheatBuf = [];
+  cheatT = now;
+  cheatBuf = [...cheatBuf, code].slice(-CHEAT.length);
+  if (state === 'night' && G && cheatBuf.join() === CHEAT.join()) { cheatBuf = []; win(); return true; }
+  return false;
+}
+
 function onKey(code) {
+  if (checkCheat(code)) return;
   if (code === 'KeyM') { muted = !muted; if (muted) stopAllLoops(); return; }
   if (state === 'night' && G && !G.pout) {
     if (code === 'Space' || code === 'KeyS') toggleTablet();
