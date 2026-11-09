@@ -245,6 +245,57 @@ cl = np.zeros(len(x))
 cl[int(1.5 * SR):int(1.5 * SR) + int(0.8 * SR)] = np.sin(2 * np.pi * 50 * t(0.8)) * env(int(0.8 * SR), 0.001, 6) + bandnoise(int(0.8 * SR), 80, 3000) * env(int(0.8 * SR), 0.001, 20)
 write("powerout", norm(wh * 0.4 + cl))
 
+# ---------------- minigame (8-bit) sounds ----------------
+def sq(f, d, duty=0.5):
+    x = t(d)
+    return np.where((x * f) % 1.0 < duty, 1.0, -1.0)
+
+
+def sweep(f0, f1, d, duty=0.5):
+    x = t(d)
+    ph = np.cumsum(np.linspace(f0, f1, len(x))) / SR
+    return np.where(ph % 1.0 < duty, 1.0, -1.0)
+
+
+write("mg_jump", norm(sweep(300, 900, 0.14, 0.25) * env(int(0.14 * SR), 0.001, 8), 0.4), "96k")
+write("mg_pick", norm(np.concatenate([sq(988, 0.06), sq(1319, 0.12)]) * np.concatenate([np.ones(int(0.06 * SR)), env(int(0.12 * SR), 0.001, 12)]), 0.4), "96k")
+write("mg_scan", norm(sq(1760, 0.12, 0.5) * env(int(0.12 * SR), 0.001, 6), 0.35), "96k")
+write("mg_err", norm(sq(110, 0.3, 0.3) + sq(116, 0.3, 0.3), 0.4), "96k")
+arp = np.concatenate([sq(f, 0.09, 0.25) for f in (523, 659, 784, 1047, 784, 1047, 1319)])
+write("mg_win", norm(arp * env(len(arp), 0.001, 1.5), 0.4), "96k")
+# eerie 8-bit drone loop (FNaF 2 minigame vibe): two slowly beating low pulses + sparse high blips, 8 s
+x = t(8.0)
+dr = np.where((x * 55) % 1 < 0.5, 1, -1) * 0.5 + np.where((x * 55.5) % 1 < 0.3, 1, -1) * 0.4
+bl = np.zeros(len(x))
+for k, f in enumerate([440, 415, 440, 392, 440, 415, 349, 330]):
+    o = int(k * SR)
+    bl[o:o + int(0.08 * SR)] += sq(f * 2, 0.08, 0.25) * 0.25
+write("mg_drone", norm(dr * 0.6 + bl, 0.35), fmt="wav", sr=22050)
+
+# ending music box (original melody, slow and sad, music-box timbre + simple reverb)
+mel2 = [("A4", 1), ("C5", 1), ("E5", 1), ("D5", 2), ("C5", 1), ("B4", 2), ("G#4", 1), ("A4", 3),
+        ("E4", 1), ("A4", 1), ("C5", 1), ("B4", 2), ("A4", 1), ("G4", 2), ("E4", 1), ("F4", 3),
+        ("F4", 1), ("A4", 1), ("D5", 1), ("C5", 2), ("B4", 1), ("A4", 2), ("G#4", 1), ("A4", 2), ("E5", 1),
+        ("D5", 1), ("C5", 1), ("B4", 1), ("A4", 3), ("A4", 3)]
+FQ = {"E4": 329.63, "F4": 349.23, "G4": 392.0, "G#4": 415.3, "A4": 440.0, "B4": 493.88, "C5": 523.25, "D5": 587.33, "E5": 659.25}
+beat = 0.55
+total = sum(b for _, b in mel2) * beat + 3.0
+y = np.zeros(int(total * SR))
+pos = 0.0
+for nt, b in mel2:
+    f = FQ[nt]
+    nx = t(2.5)
+    tone = (np.sin(2 * np.pi * f * nx) + 0.3 * np.sin(2 * np.pi * f * 2 * nx) + 0.1 * np.sin(2 * np.pi * f * 4.02 * nx)) * env(len(nx), 0.002, 2.2)
+    o = int(pos * SR)
+    m = min(len(tone), len(y) - o)
+    y[o:o + m] += tone[:m]
+    pos += b * beat
+rev = y.copy()
+for dly, gain in [(0.113, 0.5), (0.217, 0.35), (0.331, 0.25), (0.487, 0.15)]:
+    d = int(dly * SR)
+    rev[d:] += y[:-d] * gain
+write("mg_ending", norm(rev, 0.6))
+
 # ambient from the provided wav (re-encode only)
 if len(sys.argv) > 1:
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", sys.argv[1], "-ac", "2", "-b:a", "112k", os.path.join(OUT, "ambient.mp3")], check=True)
