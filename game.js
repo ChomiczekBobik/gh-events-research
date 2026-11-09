@@ -251,7 +251,8 @@ function buildLighting() {
 }
 const VENT_BTN = { shut: [1649, 821], light: [1649, 932] };
 const VENT_WIN = [1321, 816, 226, 159];
-const BOX_BTN = [80, 690, 520, 130]; // "wind the music box" button on CAM 3 (screen coords)
+const BOX_CAM = 10; // the music box sits in the back room
+const BOX_BTN = [80, 600, 300, 110]; // "wind up" button on CAM 10 (screen coords, above the battery HUD)
 
 // where each character stands on each camera: [sprite, centre-x, bottom-y, height, brightness]
 const POS = {
@@ -441,14 +442,14 @@ function updateAI(dt) {
     }
   }
 
-  // Lyudmila — music box on CAM 3
+  // Lyudmila — music box on CAM 10, her ghost stands on CAM 3
   const l = G.lyud;
   if (!l.out) {
-    const winding = G.tablet && G.tabF >= 11 && G.cam === 3 && (keys.has('KeyW') || (mouse.down && inRect(mouse, ...BOX_BTN)));
+    const winding = G.tablet && G.tabF >= 11 && G.cam === BOX_CAM && (keys.has('KeyW') || (mouse.down && inRect(mouse, ...BOX_BTN)));
     G.winding = winding;
     if (winding) l.box = Math.min(100, l.box + 22 * dt);
     else l.box -= G.cfg.box * dt;
-    if (l.box <= 0) { l.box = 0; l.out = true; l.outT = 0; play('musicbox', 0.9); camGlitchIf(3); }
+    if (l.box <= 0) { l.box = 0; l.out = true; l.outT = 0; play('musicbox', 0.9); camGlitchIf(3, BOX_CAM); }
   } else {
     G.winding = false;
     l.outT += dt;
@@ -533,7 +534,7 @@ function usageLevel() {
 }
 
 function handleNightClick(p) {
-  if (!G.call.done && inRect(p, ...SKIP_BTN)) return skipCall();
+  if (!G.call.done && G.call.idx >= 0 && inRect(p, ...SKIP_BTN)) return skipCall();
   if (G.tablet && G.tabF >= 11) {
     for (const [n, [mx, my]] of Object.entries(MAP_BTN)) {
       const x = MAP_X + mx * MAP_S - BTN_W / 2, y = MAP_Y + my * MAP_S - BTN_H / 2;
@@ -735,17 +736,16 @@ function drawCamera() {
     }
   }
 
-  // music box controls on CAM 3
-  if (cam === 3 && !G.lyud.out) {
-    const bx = BOX_BTN[0], by = BOX_BTN[1];
-    ctx.fillStyle = G.winding ? 'rgba(120,120,120,0.85)' : 'rgba(30,30,30,0.85)';
-    ctx.fillRect(bx, by, 520, 130);
-    ctx.strokeStyle = '#fff'; ctx.strokeRect(bx, by, 520, 130);
-    text('ЗАВЕСТИ ШКАТУЛКУ', bx + 175, by + 60, 30);
-    text('(удерживай мышь или W)', bx + 175, by + 100, 22, '#bbb');
-    ctx.drawImage(IMG['box' + boxFrame()], bx + 10, by + 5, 120, 120);
+  // music box on CAM 10 — FNaF 2 style: just the timer dial and a small camera-feed button
+  if (cam === BOX_CAM && !G.lyud.out) {
+    const [bx, by, bw, bh] = BOX_BTN;
+    ctx.fillStyle = G.winding ? 'rgba(150,150,150,0.55)' : 'rgba(20,20,20,0.45)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    ctx.drawImage(IMG['box' + boxFrame()], bx + 8, by + 6, bh - 12, bh - 12);
+    text('WIND UP', bx + bh + 10, by + 44, 26, 'rgba(255,255,255,0.8)');
+    text('MUSIC BOX', bx + bh + 10, by + 76, 26, 'rgba(255,255,255,0.8)');
   }
-  if (cam === 3 && G.lyud.out) text('...ШКАТУЛКА ЗАМОЛЧАЛА', 80, 960, 40, '#f44');
 }
 function boxFrame() { return clamp(9 - Math.ceil(G.lyud.box / 100 * 8), 1, 9); }
 
@@ -773,30 +773,30 @@ function drawHUD() {
   }
   // music box warning (FNaF 2 style)
   if (!G.lyud.out && G.lyud.box < 30 && Math.floor(G.t * 2.5) % 2) {
-    ctx.drawImage(IMG.box9, 1380, 990, 80, 80);
-    text('!', 1475, 1055, 64, '#ff0');
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(IMG.box9, 1380, 990, 70, 70);
+    ctx.globalAlpha = 1;
   }
-  // phone call subtitles + skip button
+  // phone call: subtitles as plain shadowed text (no panel), plus a small "mute call" button
   const c = G.call;
-  if (!c.done) {
-    const [bx, by, bw, bh] = SKIP_BTN;
-    ctx.fillStyle = inRect(mouse, bx, by, bw, bh) ? 'rgba(90,90,90,0.85)' : 'rgba(30,30,30,0.75)';
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
-    text(c.idx < 0 ? '☎ ЗВОНОК...  ПРОПУСТИТЬ' : '☎ ПРОПУСТИТЬ ЗВОНОК', bx + bw / 2, by + 38, 26, '#fff', 'center');
+  if (!c.done && c.idx >= 0) {
+    const rows = wrap(lineText(c.lines[c.idx]), 1400, 28);
+    const top = 900 - rows.length * 38;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.95)'; ctx.shadowBlur = 8; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+    rows.forEach((r, i) => text(r, W / 2, top + i * 38, 28, 'rgba(235,235,220,0.92)', 'center'));
+    ctx.restore();
   }
   if (!c.done && c.idx >= 0) {
-    const rows = wrap(lineText(c.lines[c.idx]), 1500, 30);
-    const top = 805 - rows.length * 42;
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(W / 2 - 790, top - 6, 1580, rows.length * 42 + 22);
-    rows.forEach((r, i) => text(r, W / 2, top + 30 + i * 42, 30, '#ffe', 'center'));
-  }
-  if (G.night === 1 && G.t < 40 && (c.done || c.idx < 0)) {
-    text('Пробел — камеры · A/D — двери · Q/E — свет · F — заслонка вента · R — свет в венте · M — звук', W / 2, 885, 24, '#aaa', 'center');
+    const [bx, by, bw, bh] = SKIP_BTN;
+    ctx.fillStyle = inRect(mouse, bx, by, bw, bh) ? 'rgba(110,110,110,0.6)' : 'rgba(40,40,40,0.45)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    text('MUTE CALL', bx + bw / 2, by + 30, 22, 'rgba(255,255,255,0.75)', 'center');
   }
 }
 
+const SKIP_BTN = [40, 26, 170, 44];
 function wrap(s, maxW, size) {
   ctx.font = `bold ${size}px Consolas, "Courier New", monospace`;
   const words = s.split(' '), rows = [];
@@ -808,8 +808,6 @@ function wrap(s, maxW, size) {
   if (cur) rows.push(cur);
   return rows;
 }
-
-const SKIP_BTN = [W - 420, 190, 380, 56];
 function updateCall(dt) {
   const c = G.call;
   if (c.done) return;
@@ -927,7 +925,7 @@ function drawMenu(dt) {
     if (inRect(mouse, 90, y - 50, 700, 70)) menu.hover = i;
     text((menu.hover === i ? '>> ' : '   ') + label, 90, y, 50, '#fff');
   });
-  text('v0.1 прототип · M — звук', 90, H - 30, 22, '#666');
+  text('ПРОБЕЛ — камеры   A / D — двери   Q / E — свет   F / R — вентиляция   W — шкатулка (CAM 10)   M — звук', 90, H - 30, 20, '#555');
   loop('ambient', true, 0.7);
   loop('static', true, 0.08);
 
