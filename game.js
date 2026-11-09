@@ -871,27 +871,31 @@ function drawNight() {
 }
 
 // ---------------------------------------------------------------- jumpscare
+// where the face is on each jumpscare sprite: [x, y] as fractions of the sprite, face height as fraction
+const SCARE_FACE = {
+  homka: [0.48, 0.075, 0.12], brother: [0.48, 0.07, 0.11], lyud: [0.52, 0.42, 0.5],
+  zov: [0.5, 0.3, 0.85], mell: [0.55, 0.19, 0.36],
+};
 function drawScare() {
   const t = stateT;
   if (G && G.tabF < 11) drawOffice(); else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); }
-  const shake = () => [rand(-28, 28), rand(-22, 22)];
-  const [sx, sy] = shake();
-  const k = Math.min(1, t / 0.18);
-  ctx.save();
-  ctx.translate(W / 2 + sx, H / 2 + sy);
-  const sc = 0.55 + k * 0.6 + Math.sin(t * 40) * 0.03;
-  ctx.scale(sc, sc);
-  let im, h = 1500, by = 760;
-  if (scareWho === 'homka') im = IMG.homka_scare;
-  if (scareWho === 'brother') { im = IMG.brother; h = 2600; by = 1900; }
-  if (scareWho === 'zov') { im = IMG.zov; h = 1300; by = 700; }
-  if (scareWho === 'lyud') { im = IMG.lyud_face; h = 1400; by = 700; }
-  if (scareWho === 'mell') { im = IMG['ms' + (Math.floor(t * 15) % 23)]; h = 1300; by = 650; }
-  drawH(im, 0, by, h);
-  ctx.restore();
-  if (Math.random() < 0.35) staticOverlay(0.35);
-  ctx.fillStyle = `rgba(255,0,0,${0.08 + Math.random() * 0.08})`; ctx.fillRect(0, 0, W, H);
-  if (t > 1.4) setState('dead');
+  const amp = t < 0.25 ? 45 : 22;
+  const sx = rand(-amp, amp), sy = rand(-amp * 0.8, amp * 0.8);
+  const k = Math.min(1, t / 0.16);
+  const ease = 1 - Math.pow(1 - k, 3);
+  let im = { homka: IMG.homka_scare, brother: IMG.brother, zov: IMG.zov, lyud: IMG.lyud_face }[scareWho];
+  if (scareWho === 'mell') im = IMG['ms' + (Math.floor(t * 15) % 23)];
+  const [fx, fy, ff] = SCARE_FACE[scareWho] || [0.5, 0.2, 0.3];
+  if (im) {
+    // the face lunges at the camera and ends up filling the screen, centred slightly above the middle
+    const faceH = 240 + ease * 660 + Math.sin(t * 38) * 25;
+    const sh = faceH / ff, sw = im.width * sh / im.height;
+    ctx.drawImage(im, W / 2 + sx - fx * sw, H * 0.44 + sy - fy * sh, sw, sh);
+  }
+  if (t < 0.06) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(0, 0, W, H); }
+  if (Math.random() < 0.45) staticOverlay(0.3 + Math.random() * 0.3);
+  ctx.fillStyle = `rgba(255,0,0,${0.08 + Math.random() * 0.12})`; ctx.fillRect(0, 0, W, H);
+  if (t > 1.7) setState('dead');
 }
 
 // ---------------------------------------------------------------- screens
