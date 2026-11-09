@@ -44,8 +44,9 @@ for (let i = 0; i < 23; i++) addImg('ms' + i, `mell/scare${i}.webp`);
 for (let i = 0; i < 3; i++) addImg('mi' + i, `mell/idle${i}.webp`);
 
 const SND_NAMES = ['ambient', 'blip', 'chimes', 'door', 'fan', 'hangup', 'knock', 'light', 'mell_scare', 'musicbox', 'powerout',
-  'ring', 'scream', 'shutter', 'static', 'steps', 'tablet_down', 'tablet_up', 'vent', 'wind', 'sting'];
-const SND_WAV = new Set(['fan', 'light', 'static']); // loops: wav has no mp3 padding gap
+  'ring', 'scream', 'shutter', 'static', 'steps', 'tablet_down', 'tablet_up', 'vent', 'wind', 'sting',
+  'mg_jump', 'mg_pick', 'mg_scan', 'mg_err', 'mg_win', 'mg_drone', 'mg_ending'];
+const SND_WAV = new Set(['fan', 'light', 'static', 'mg_drone']); // loops: wav has no mp3 padding gap
 const SND = {};
 let muted = false;
 
@@ -316,13 +317,16 @@ function checkCheat(code) {
   if (now - cheatT > 2000) cheatBuf = [];
   cheatT = now;
   cheatBuf = [...cheatBuf, code].slice(-CHEAT.length);
-  if (state === 'night' && G && cheatBuf.join() === CHEAT.join()) { cheatBuf = []; win(); return true; }
+  if (cheatBuf.join() !== CHEAT.join()) return false;
+  if (state === 'night' && G) { cheatBuf = []; win(); return true; }
+  if (state === 'mini') { cheatBuf = []; MG.finish(); return true; }
   return false;
 }
 
 function onKey(code) {
   if (checkCheat(code)) return;
   if (code === 'KeyM') { muted = !muted; if (muted) stopAllLoops(); return; }
+  if (state === 'mini') { MG.key(code); return; }
   if (state === 'night' && G && !G.pout) {
     if (code === 'Space' || code === 'KeyS') toggleTablet();
     if (G.tablet) {
@@ -1048,8 +1052,14 @@ function drawWin(dt) {
   text('AM', W / 2 + 70, H / 2 + 30, 130, '#fff', 'center');
   if (stateT > 7.5 || (clickQueue.length && stateT > 3.5)) {
     const n = G.night;
-    if (n < 5) { save.night = n + 1; menu.next = n + 1; setState('intro'); }
-    else { if (n === 5) { save.beaten = true; save.night = 5; } menu.ending = n; setState('pay'); }
+    if (n <= 5) {
+      // progress is saved before the minigame, so quitting during it loses nothing
+      if (n < 5) save.night = n + 1; else { save.beaten = true; save.night = 5; }
+      MG.start(n, () => {
+        if (n < 5) { menu.next = n + 1; setState('intro'); } else { menu.ending = 5; setState('pay'); }
+      });
+      setState('mini');
+    } else { menu.ending = n; setState('pay'); }
   }
   clickQueue = [];
 }
@@ -1082,7 +1092,8 @@ function drawLoading() {
     text('Нажми, чтобы начать (лучше в наушниках)', W / 2, H / 2 + 110, 34, '#bbb', 'center');
     if (clickQueue.length) {
       clickQueue = [];
-      if (Q.has('night')) { menu.next = clamp(+Q.get('night'), 1, 6); newNight(menu.next); setState('night'); }
+      if (Q.has('mg')) { MG.start(clamp(+Q.get('mg'), 1, 5), () => setState('menu')); setState('mini'); }
+      else if (Q.has('night')) { menu.next = clamp(+Q.get('night'), 1, 6); newNight(menu.next); setState('night'); }
       else setState('menu');
       if (document.documentElement.requestFullscreen && !Q.has('nofs')) document.documentElement.requestFullscreen().catch(() => {});
     }
@@ -1104,6 +1115,7 @@ function frame(now) {
     case 'dead': drawDead(dt); break;
     case 'win': drawWin(dt); break;
     case 'pay': drawPay(dt); break;
+    case 'mini': MG.frame(dt); break;
   }
   if (Q.has('debug') && G) {
     text(`homka:${G.homka.pos}${G.homka.inOffice ? '!' : ''} bro:${G.brother.pos} zov:${G.zov.pos} mell:${G.mell.mode}${G.mell.stage} box:${G.lyud.box.toFixed(0)} pwr:${G.power.toFixed(1)}`,
