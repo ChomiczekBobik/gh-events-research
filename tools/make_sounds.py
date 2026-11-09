@@ -1,9 +1,10 @@
 """Synthesize the game's sound effects (no external samples needed).
 
-Usage: python tools/make_sounds.py <ambient.wav> [mell_voice.wav]
+Usage: python tools/make_sounds.py <menu_music.mp3> [mell_voice.wav]
 Writes mp3 files to fnah/assets/sfx/.
 """
 import os
+import shutil
 import subprocess
 import sys
 import wave
@@ -296,7 +297,7 @@ for dly, gain in [(0.113, 0.5), (0.217, 0.35), (0.331, 0.25), (0.487, 0.15)]:
     rev[d:] += y[:-d] * gain
 write("mg_ending", norm(rev, 0.6))
 
-# ambient from the provided wav (re-encode only)
+# main menu music: the provided track is used as-is
 if len(sys.argv) > 1:
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", sys.argv[1], "-ac", "2", "-b:a", "112k", os.path.join(OUT, "ambient.mp3")], check=True)
+    shutil.copyfile(sys.argv[1], os.path.join(OUT, "menu.mp3"))
 print("sfx ->", OUT)
