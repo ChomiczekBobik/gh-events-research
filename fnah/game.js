@@ -43,8 +43,9 @@ for (const k of ['homka_walk', 'homka_crawl', 'homka_crawl2', 'homka_crouch', 'h
 for (let i = 0; i < 23; i++) addImg('ms' + i, `mell/scare${i}.webp`);
 for (let i = 0; i < 3; i++) addImg('mi' + i, `mell/idle${i}.webp`);
 
-const SND_NAMES = ['ambient', 'blip', 'chimes', 'door', 'knock', 'light', 'mell_scare', 'menu', 'musicbox', 'powerout',
-  'scream', 'shutter', 'static', 'steps', 'tablet_down', 'tablet_up', 'vent', 'wind', 'sting'];
+const SND_NAMES = ['ambient', 'blip', 'chimes', 'door', 'fan', 'hangup', 'knock', 'light', 'mell_scare', 'musicbox', 'powerout',
+  'ring', 'scream', 'shutter', 'static', 'steps', 'tablet_down', 'tablet_up', 'vent', 'wind', 'sting'];
+const SND_WAV = new Set(['fan', 'light', 'static']); // loops: wav has no mp3 padding gap
 const SND = {};
 let muted = false;
 
@@ -65,7 +66,7 @@ function loadAll(onProgress) {
     a.addEventListener('canplaythrough', fin, { once: true });
     a.addEventListener('error', fin, { once: true });
     setTimeout(fin, 4000); // do not block on slow audio
-    a.src = `assets/sfx/${n}.mp3`;
+    a.src = `assets/sfx/${n}.${SND_WAV.has(n) ? 'wav' : 'mp3'}`;
     SND[n] = a;
   }));
   return Promise.all([...imgs, ...snds]);
@@ -196,10 +197,52 @@ const BTN_W = 46, BTN_H = 31;
 
 // office hotspots (office image coordinates)
 const DOOR_L_X = 163, DOOR_R_X = 2420, DOOR_W = 297;
-const BTN = {
-  doorL: [470, 505, 100, 125], lightL: [470, 650, 100, 125],
-  doorR: [2280, 504, 113, 123], lightR: [2280, 651, 113, 122],
+const BTN = { // measured from the office art (red/yellow button blobs), padded for easier clicking
+  doorL: [470, 495, 110, 140], lightL: [470, 645, 110, 140],
+  doorR: [2270, 495, 110, 140], lightR: [2270, 645, 110, 140],
 };
+
+// pre-rendered "lit" pieces of the office (built once after loading)
+const LIGHT = {};
+function buildLighting() {
+  const lit = document.createElement('canvas');
+  lit.width = OFFICE_W; lit.height = H;
+  const lx = lit.getContext('2d');
+  lx.drawImage(IMG.office, 0, 0);
+  // warm incandescent boost via compositing (no getImageData: canvas is tainted when opened from file://)
+  lx.globalCompositeOperation = 'lighter';
+  lx.drawImage(IMG.office, 0, 0);
+  lx.drawImage(IMG.office, 0, 0);
+  lx.fillStyle = 'rgb(26,18,6)';
+  lx.fillRect(0, 0, OFFICE_W, H);
+  lx.globalCompositeOperation = 'multiply';
+  lx.fillStyle = 'rgb(255,232,190)';
+  lx.fillRect(0, 0, OFFICE_W, H);
+  lx.globalCompositeOperation = 'source-over';
+  // soft elliptical spot cut out of the lit office
+  const spot = (cx, cy, rx, ry, extra = {}) => {
+    const x0 = Math.max(0, Math.floor(cx - rx)), y0 = Math.max(0, Math.floor(cy - ry));
+    const w = Math.min(OFFICE_W, Math.ceil(cx + rx)) - x0, h = Math.min(H, Math.ceil(cy + ry)) - y0;
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    x.drawImage(lit, x0, y0, w, h, 0, 0, w, h);
+    x.globalCompositeOperation = 'destination-in';
+    x.translate(cx - x0, cy - y0); x.scale(1, ry / rx);
+    const g = x.createRadialGradient(0, 0, 0, 0, 0, rx);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,0.75)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(-rx, -rx, rx * 2, rx * 2);
+    return { c, x: x0, y: y0, cx, cy, r: Math.min(rx, ry), ...extra };
+  };
+  LIGHT.doorL = spot(DOOR_L_X + DOOR_W / 2, 470, 260, 620);
+  LIGHT.doorR = spot(DOOR_R_X + DOOR_W / 2, 470, 260, 620);
+  LIGHT.btnDoorL = spot(527, 566, 62, 74, { glow: 'rgba(255,40,30,0.55)' });
+  LIGHT.btnDoorR = spot(2320, 566, 62, 74, { glow: 'rgba(255,40,30,0.55)' });
+  LIGHT.btnLightL = spot(528, 713, 62, 74, { glow: 'rgba(255,230,60,0.45)' });
+  LIGHT.btnLightR = spot(2319, 713, 62, 74, { glow: 'rgba(255,230,60,0.45)' });
+  LIGHT.btnVentShut = spot(VENT_BTN.shut[0], VENT_BTN.shut[1], 50, 50, { glow: 'rgba(255,80,40,0.4)' });
+  LIGHT.btnVentLight = spot(VENT_BTN.light[0], VENT_BTN.light[1], 50, 50, { glow: 'rgba(255,240,150,0.4)' });
+}
 const VENT_BTN = { shut: [1649, 821], light: [1649, 932] };
 const VENT_WIN = [1321, 816, 226, 159];
 const BOX_BTN = [80, 690, 520, 130]; // "wind the music box" button on CAM 3 (screen coords)
@@ -221,23 +264,11 @@ const HOMKA_GRAPH = { 1: ['2'], 2: ['4'], 4: ['5'], 5: ['6', '8'], 6: ['RDOOR'],
 const BRO_GRAPH = { 10: ['9'], 9: ['4'], 4: ['5'], 5: ['6'], 6: ['RDOOR'] };
 const ZOV_GRAPH = { 5: ['7'], 7: ['11'], 11: ['VENT'] };
 
-const CALLS = {
-  1: ['Алло? Алло! Привет, Даня. Добро пожаловать в ZOVKA Starbucks.',
-    'Работа простая: следи за камерами и не пускай Хомку на склад кофе и батончиков.',
-    'Красные кнопки — двери, жёлтые — свет в проёме. Под столом — заслонка вентиляции и её свет.',
-    'И главное: заводи шкатулку на CAM 3. Людмила очень не любит тишину.',
-    'Энергии мало — не держи всё включённым. Продержись до 6 утра. Удачи!'],
-  2: ['Привет, это снова я. Плохие новости: брат Хомки тоже вышел на смену.',
-    'Он идёт из подсобки (CAM 10) через запасной выход к правой двери.',
-    'И проверяй CAM 8. За решёткой кто-то сидит... Не своди с него глаз, иначе он побежит.',
-    'Если слышишь стук в левую дверь — значит, ты успел её закрыть.'],
-  3: ['Слышишь шорох под столом? Это Зовянчик.',
-    'Хомяк ползёт с CAM 5 через CAM 7 и CAM 11 прямо в вентиляцию.',
-    'Свет в венте покажет его. Заслонка — закроет.'],
-  4: ['Ночь четвёртая. Если стучат — не открывай.', 'Шкатулку заводи чаще. Людмила стала злее.'],
-  5: ['...', 'Удачи, Даня.'],
-  6: ['Тебе здесь нечего делать. Ночь 6.'],
-};
+// phone calls, night cards and endings live in story.js
+const CALLS = STORY.calls;
+const CALL_START = 4.5; // seconds of ringing before the call picks up
+const lineText = l => (typeof l === 'string' ? l : l.t);
+const lineDur = l => Math.max(3.2, lineText(l).length * 0.062);
 
 // ---------------------------------------------------------------- state
 let state = 'loading';
@@ -261,8 +292,9 @@ function newNight(n) {
     lyud: { box: 100, out: false, outT: 0 },
     pout: null, // power-out sequence
     seen: {}, // window-scare stings already played
-    callIdx: 0, callT: 0,
+    call: { lines: CALLS[n] || [], idx: -1, t: 0, done: !(CALLS[n] || []).length, ring: null },
   };
+  if (G.call.lines.length) G.call.ring = play('ring', 0.6);
   if (Q.has('debugpos')) { G.homka.pos = Q.get('debugpos'); }
 }
 
@@ -433,10 +465,8 @@ function updateNight(dt) {
   G.t += dt;
   stateT += dt;
 
-  // phone-call subtitles
-  const call = CALLS[G.night] || [];
-  G.callT += dt;
-  if (G.callIdx < call.length && G.callT > 5.5) { G.callIdx++; G.callT = 0; }
+  // phone call (subtitles; some lines trigger sounds)
+  updateCall(dt);
 
   if (G.t >= 6 * HOUR_LEN) return win();
 
@@ -483,7 +513,7 @@ function updateNight(dt) {
   }
 
   // loops
-  loop('ambient', true, 0.55);
+  loop('fan', true, 0.5);
   loop('light', G.lightL || G.lightR || G.ventLight, 0.35);
   loop('static', G.tablet && G.tabF >= 11, 0.18);
   loop('wind', !!G.winding, 0.7);
@@ -497,6 +527,7 @@ function usageLevel() {
 }
 
 function handleNightClick(p) {
+  if (!G.call.done && inRect(p, ...SKIP_BTN)) return skipCall();
   if (G.tablet && G.tabF >= 11) {
     for (const [n, [mx, my]] of Object.entries(MAP_BTN)) {
       const x = MAP_X + mx * MAP_S - BTN_W / 2, y = MAP_Y + my * MAP_S - BTN_H / 2;
@@ -554,18 +585,28 @@ function drawOffice() {
   const ox = Math.round(G.ox);
   ctx.drawImage(IMG.office, -ox, 0);
 
-  // doorways: lit when the light is on
+  // doorways: the hall light reveals a brightened, warm cone of the office art
+  const buzz = Math.random() < 0.06; // the bulb flickers like in FNaF
   for (const side of ['L', 'R']) {
     const dx = (side === 'L' ? DOOR_L_X : DOOR_R_X) - ox;
-    const lit = side === 'L' ? G.lightL : G.lightR;
+    const lit = (side === 'L' ? G.lightL : G.lightR) && !buzz;
     const doorF = Math.round(side === 'L' ? G.doorLF : G.doorRF);
     if (lit && doorF > 12) {
-      const g = ctx.createRadialGradient(dx + DOOR_W / 2, 560, 40, dx + DOOR_W / 2, 560, 520);
-      g.addColorStop(0, 'rgba(255,235,190,0.28)');
-      g.addColorStop(1, 'rgba(255,240,200,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(dx - 80, 0, DOOR_W + 160, H);
-      // who stands in the doorway
+      const sp = LIGHT['door' + side];
+      ctx.drawImage(sp.c, sp.x - ox, sp.y);
+      // the hallway art is pure black, so add the bulb's own warm pool of light
+      ctx.save();
+      ctx.beginPath(); ctx.rect(dx, 0, DOOR_W, H); ctx.clip();
+      ctx.globalCompositeOperation = 'lighter';
+      const cx = dx + DOOR_W / 2;
+      const g1 = ctx.createRadialGradient(cx, 300, 10, cx, 300, 420);
+      g1.addColorStop(0, 'rgba(255,210,140,0.30)'); g1.addColorStop(1, 'rgba(255,190,120,0)');
+      ctx.fillStyle = g1; ctx.fillRect(dx, 0, DOOR_W, H);
+      ctx.translate(cx, 960); ctx.scale(1, 0.32);
+      const g2 = ctx.createRadialGradient(0, 0, 10, 0, 0, 260);
+      g2.addColorStop(0, 'rgba(255,215,150,0.40)'); g2.addColorStop(1, 'rgba(255,200,130,0)');
+      ctx.fillStyle = g2; ctx.fillRect(-300, -300, 600, 600);
+      ctx.restore();
       const who = [];
       if (side === 'L' && G.homka.pos === 'LDOOR') who.push(['homka_door', 0]);
       if (side === 'R' && G.homka.pos === 'RDOOR') who.push(['homka_door', -30]);
@@ -573,34 +614,38 @@ function drawOffice() {
       for (const [k, off] of who) {
         ctx.save();
         ctx.beginPath(); ctx.rect(dx, 0, DOOR_W, H); ctx.clip();
-        drawH(dark(IMG[k], 0.6), dx + DOOR_W / 2 + off, 1010, 820);
+        drawH(dark(IMG[k], 0.78), dx + DOOR_W / 2 + off, 1010, 820);
+        const v = ctx.createRadialGradient(dx + DOOR_W / 2, 470, 120, dx + DOOR_W / 2, 470, 620);
+        v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.85)');
+        ctx.fillStyle = v; ctx.fillRect(dx, 0, DOOR_W, H);
         ctx.restore();
       }
-    } else if (!lit && doorF > 12) {
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    } else if (doorF > 12) {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
       ctx.fillRect(dx, 0, DOOR_W, H);
     }
     const dimg = IMG[(side === 'L' ? 'dl' : 'dr') + doorF];
     if (dimg && doorF < 19) ctx.drawImage(dimg, dx, -5);
   }
 
-  // button glow
-  const glow = (r, on, col) => {
+  // pressed buttons light up in their own shape (brightened art + soft glow)
+  const lightBtn = (key, on) => {
     if (!on) return;
-    ctx.fillStyle = col;
-    ctx.fillRect(r[0] - ox, r[1], r[2], r[3]);
+    const sp = LIGHT[key];
+    ctx.drawImage(sp.c, sp.x - ox, sp.y);
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(sp.cx - ox, sp.cy, 0, sp.cx - ox, sp.cy, sp.r * 1.6);
+    g.addColorStop(0, sp.glow); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(sp.cx - ox - sp.r * 1.6, sp.cy - sp.r * 1.6, sp.r * 3.2, sp.r * 3.2);
+    ctx.globalCompositeOperation = 'source-over';
   };
-  glow(BTN.doorL, G.doorL, 'rgba(255,60,60,0.35)');
-  glow(BTN.doorR, G.doorR, 'rgba(255,60,60,0.35)');
-  glow(BTN.lightL, G.lightL, 'rgba(255,255,120,0.45)');
-  glow(BTN.lightR, G.lightR, 'rgba(255,255,120,0.45)');
-  const ring = (c, on, col) => {
-    if (!on) return;
-    ctx.beginPath(); ctx.arc(c[0] - ox, c[1], 44, 0, Math.PI * 2);
-    ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.stroke();
-  };
-  ring(VENT_BTN.shut, G.ventClosed, 'rgba(255,90,60,0.9)');
-  ring(VENT_BTN.light, G.ventLight, 'rgba(255,255,140,0.9)');
+  lightBtn('btnDoorL', G.doorL);
+  lightBtn('btnDoorR', G.doorR);
+  lightBtn('btnLightL', G.lightL);
+  lightBtn('btnLightR', G.lightR);
+  lightBtn('btnVentShut', G.ventClosed);
+  lightBtn('btnVentLight', G.ventLight);
 
   // vent window under the desk
   const [vx, vy, vw, vh] = VENT_WIN;
@@ -724,18 +769,58 @@ function drawHUD() {
     ctx.drawImage(IMG.box9, 1380, 990, 80, 80);
     text('!', 1475, 1055, 64, '#ff0');
   }
-  // phone call subtitles
-  const call = CALLS[G.night] || [];
-  if (G.callIdx > 0 && G.callIdx <= call.length && G.callT < 5.5) {
-    const s = call[G.callIdx - 1];
-    ctx.font = 'bold 30px Consolas, monospace';
-    const w = ctx.measureText(s).width + 50;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(W / 2 - w / 2, 905, w, 60);
-    text(s, W / 2, 947, 30, '#ffe', 'center');
+  // phone call subtitles + skip button
+  const c = G.call;
+  if (!c.done) {
+    const [bx, by, bw, bh] = SKIP_BTN;
+    ctx.fillStyle = inRect(mouse, bx, by, bw, bh) ? 'rgba(90,90,90,0.85)' : 'rgba(30,30,30,0.75)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = '#ccc'; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+    text(c.idx < 0 ? '☎ ЗВОНОК...  ПРОПУСТИТЬ' : '☎ ПРОПУСТИТЬ ЗВОНОК', bx + bw / 2, by + 38, 26, '#fff', 'center');
   }
-  if (G.night === 1 && G.t < 40) {
+  if (!c.done && c.idx >= 0) {
+    const rows = wrap(lineText(c.lines[c.idx]), 1500, 30);
+    const top = 805 - rows.length * 42;
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(W / 2 - 790, top - 6, 1580, rows.length * 42 + 22);
+    rows.forEach((r, i) => text(r, W / 2, top + 30 + i * 42, 30, '#ffe', 'center'));
+  }
+  if (G.night === 1 && G.t < 40 && (c.done || c.idx < 0)) {
     text('Пробел — камеры · A/D — двери · Q/E — свет · F — заслонка вента · R — свет в венте · M — звук', W / 2, 885, 24, '#aaa', 'center');
   }
+}
+
+function wrap(s, maxW, size) {
+  ctx.font = `bold ${size}px Consolas, "Courier New", monospace`;
+  const words = s.split(' '), rows = [];
+  let cur = '';
+  for (const w of words) {
+    const t2 = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(t2).width > maxW && cur) { rows.push(cur); cur = w; } else cur = t2;
+  }
+  if (cur) rows.push(cur);
+  return rows;
+}
+
+const SKIP_BTN = [W - 420, 190, 380, 56];
+function updateCall(dt) {
+  const c = G.call;
+  if (c.done) return;
+  c.t += dt;
+  const next = () => {
+    c.idx++; c.t = 0;
+    if (c.idx >= c.lines.length) { c.done = true; return; }
+    const l = c.lines[c.idx];
+    if (l.sfx) play(l.sfx, l.sfx === 'scream' ? 0.6 : 0.8);
+  };
+  if (c.idx < 0) { if (c.t > CALL_START) next(); }
+  else if (c.t > lineDur(c.lines[c.idx])) next();
+}
+function skipCall() {
+  const c = G.call;
+  if (c.ring) c.ring.pause();
+  c.done = true;
+  play('hangup', 0.6);
 }
 
 function drawNight() {
@@ -817,7 +902,7 @@ function drawMenu(dt) {
     text((menu.hover === i ? '>> ' : '   ') + label, 90, y, 50, '#fff');
   });
   text('v0.1 прототип · M — звук', 90, H - 30, 22, '#666');
-  loop('menu', true, 0.6);
+  loop('ambient', true, 0.7);
   loop('static', true, 0.08);
 
   for (const p of clickQueue) {
@@ -846,10 +931,14 @@ function drawPaper(dt) {
 function drawIntro(dt) {
   stateT += dt;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  text('12:00 AM', W / 2, H / 2 - 20, 80, '#fff', 'center');
-  text(`${menu.next}-я ночь`, W / 2, H / 2 + 70, 56, '#fff', 'center');
+  text('12:00 AM', W / 2, H / 2 - 90, 80, '#fff', 'center');
+  text(`${menu.next}-я ночь`, W / 2, H / 2, 56, '#fff', 'center');
+  const card = (STORY.cards[menu.next] || []);
+  ctx.globalAlpha = clamp((stateT - 0.8) / 0.8, 0, 1);
+  card.forEach((s, i) => text(s, W / 2, H / 2 + 110 + i * 46, 30, '#aaa', 'center'));
+  ctx.globalAlpha = 1;
   if (stateT < 0.7) staticOverlay(1 - stateT / 0.7);
-  if (stateT > 3 || (clickQueue.length && stateT > 0.5)) {
+  if (stateT > 3 + card.length * 1.8 || (clickQueue.length && stateT > 0.5)) {
     newNight(menu.next);
     setState('night');
     play('blip', 0.3);
@@ -863,8 +952,7 @@ function drawDead(dt) {
   staticOverlay(Math.max(0.25, 1 - stateT));
   if (stateT > 1) {
     text('ИГРА ОКОНЧЕНА', W / 2, H / 2 - 20, 90, '#fff', 'center');
-    const who = { homka: 'Хомка', brother: 'Брат Хомки', zov: 'Зовянчик', lyud: 'Людмила', mell: 'Меллстрой' }[scareWho];
-    text(`Даню поймал(а): ${who}`, W / 2, H / 2 + 60, 40, '#bbb', 'center');
+    text(STORY.death[scareWho] || '', W / 2, H / 2 + 60, 40, '#bbb', 'center');
     text('Нажми, чтобы вернуться в меню', W / 2, H / 2 + 160, 28, '#777', 'center');
   }
   loop('static', true, 0.25);
@@ -885,23 +973,27 @@ function drawWin(dt) {
   if (stateT > 7.5 || (clickQueue.length && stateT > 3.5)) {
     const n = G.night;
     if (n < 5) { save.night = n + 1; menu.next = n + 1; setState('intro'); }
-    else if (n === 5) { save.beaten = true; save.night = 5; setState('pay'); }
-    else setState('menu');
+    else { if (n === 5) { save.beaten = true; save.night = 5; } menu.ending = n; setState('pay'); }
   }
   clickQueue = [];
 }
 
 function drawPay(dt) {
   stateT += dt;
+  const e = STORY.endings[menu.ending] || STORY.endings[5];
   ctx.fillStyle = '#111'; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#e8e2cf'; ctx.fillRect(460, 260, 1000, 520);
-  text('ZOVKA STARBUCKS ENTERTAINMENT', 960, 340, 40, '#222', 'center');
-  text('ЗАРПЛАТНЫЙ ЧЕК', 960, 410, 36, '#222', 'center');
-  text('Охранник: Даня', 520, 500, 32, '#222');
-  text('За 5 ночей: 5 злотых', 520, 560, 32, '#222');
-  text('Хомка до склада не добрался.', 520, 620, 32, '#222');
-  text('Открыта 6-я ночь!', 960, 740, 32, '#a00', 'center');
-  if ((clickQueue.length && stateT > 1) || stateT > 15) setState('menu');
+  const h = 260 + e.lines.length * 62;
+  const y0 = (H - h) / 2;
+  ctx.globalAlpha = clamp(stateT / 1.2, 0, 1);
+  ctx.fillStyle = '#e8e2cf'; ctx.fillRect(360, y0, 1200, h);
+  text(e.title, 960, y0 + 80, 40, '#222', 'center');
+  e.lines.forEach((s, i) => {
+    const rows = wrap(s, 1080, 30);
+    rows.forEach((r, j) => text(r, i === 0 ? 960 : 420, y0 + 150 + i * 62 + j * 34, i === 0 ? 36 : 30, '#222', i === 0 ? 'center' : 'left'));
+  });
+  text(e.footer, 960, y0 + h - 40, 34, '#a00', 'center');
+  ctx.globalAlpha = 1;
+  if ((clickQueue.length && stateT > 1.5) || stateT > 25) setState('menu');
   clickQueue = [];
 }
 
@@ -943,7 +1035,7 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-loadAll(p => { loadP = p; }).then(() => { loadP = 1; });
+loadAll(p => { loadP = p; }).then(() => { buildLighting(); loadP = 1; });
 requestAnimationFrame(frame);
 
 // test hooks

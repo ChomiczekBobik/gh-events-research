@@ -52,15 +52,18 @@ def norm(x, peak=0.9):
     return x / (np.abs(x).max() + 1e-9) * peak
 
 
-def write(name, x, br="128k"):
+def write(name, x, br="128k", fmt="mp3", sr=SR):
     x = np.clip(x, -1, 1)
+    if sr != SR:
+        x = np.interp(np.arange(0, len(x), SR / sr), np.arange(len(x)), x)
     tmp = f"/tmp/_snd_{name}.wav"
-    with wave.open(tmp, "wb") as w:
+    with wave.open(tmp if fmt == "mp3" else os.path.join(OUT, name + ".wav"), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
-        w.setframerate(SR)
+        w.setframerate(sr)
         w.writeframes((x * 32767).astype(np.int16).tobytes())
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", tmp, "-b:a", br, os.path.join(OUT, name + ".mp3")], check=True)
+    if fmt == "mp3":
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", tmp, "-b:a", br, os.path.join(OUT, name + ".mp3")], check=True)
 
 
 def mix(n, *parts):
@@ -79,11 +82,32 @@ thump = np.sin(2 * np.pi * (70 - 30 * x) * x) * env(len(x), 0.002, 9)
 clang = sum(np.sin(2 * np.pi * f * x) * env(len(x), 0.001, k) for f, k in [(310, 7), (547, 9), (893, 11), (1271, 14), (1720, 18)])
 write("door", norm(thump * 1.4 + clang * 0.25 + bandnoise(len(x), 200, 5000) * env(len(x), 0.001, 30) * 0.6))
 
-# light buzz loop (exactly 1s for seamless loop)
+# light buzz loop (exactly 1s; wav so the loop has no mp3 padding gap)
 x = t(1.0)
 hum = sum(np.sign(np.sin(2 * np.pi * 120 * k * x)) / k ** 1.5 for k in range(1, 6))
 crackle = (rng.random(len(x)) > 0.9992) * rng.standard_normal(len(x)) * 3
-write("light", norm(hum * 0.5 + bandnoise(len(x), 2000, 8000) * 0.15 + crackle, 0.5))
+write("light", norm(hum * 0.5 + bandnoise(len(x), 2000, 8000) * 0.15 + crackle, 0.5), fmt="wav", sr=22050)
+
+# office fan loop (FNaF 1 desk fan): circular FFT noise + blade whoosh + motor hum, 4 s, seamless
+n = 4 * SR
+x = t(4.0)
+air = bandnoise(n, 60, 1800)
+air = air * 0.7 + bandnoise(n, 120, 500) * 0.6
+blades = 0.75 + 0.25 * np.sin(2 * np.pi * 14.0 * x) ** 2  # integer cycles per loop -> seamless
+motor = 0.18 * np.sin(2 * np.pi * 50 * x) + 0.08 * np.sin(2 * np.pi * 100 * x) + 0.03 * np.sin(2 * np.pi * 150 * x)
+rattle = bandnoise(n, 900, 3000) * 0.06 * (np.sin(2 * np.pi * 28 * x) > 0.6)
+write("fan", norm(air * blades + motor + rattle, 0.7), fmt="wav", sr=22050)
+
+# old phone ringing (two rings)
+d = 4.2
+x = t(d)
+gate = ((x % 2.0) < 1.1).astype(float)
+bell = (np.sin(2 * np.pi * 440 * x) + np.sin(2 * np.pi * 480 * x)) * (np.sin(2 * np.pi * 20 * x) > 0)
+write("ring", norm(np.tanh(bell * 1.5) * gate * np.clip((d - x) * 4, 0, 1), 0.5))
+
+# call hang-up / line static
+x = t(1.2)
+write("hangup", norm(bandnoise(len(x), 300, 3400) * env(len(x), 0.002, 2.5) * 0.6 + np.sin(2 * np.pi * 425 * x) * (x > 0.4) * env(len(x), 0.3, 1.5) * 0.4, 0.6))
 
 # camera switch blip
 x = t(0.14)
@@ -101,7 +125,7 @@ for name, rev in [("tablet_up", False), ("tablet_down", True)]:
 # camera static loop
 n = 2 * SR
 st = bandnoise(n, 800, 9000) * (0.6 + 0.4 * np.abs(np.sin(2 * np.pi * 3.1 * t(2))))
-write("static", norm(st, 0.35), "96k")
+write("static", norm(st, 0.35), fmt="wav", sr=22050)
 
 # jumpscare scream: detuned wobbling saws, distorted
 d = 1.7
@@ -203,12 +227,6 @@ wh = np.sin(2 * np.pi * np.cumsum(900 * np.exp(-x * 1.6) + 40) / SR) * np.clip(1
 cl = np.zeros(len(x))
 cl[int(1.5 * SR):int(1.5 * SR) + int(0.8 * SR)] = np.sin(2 * np.pi * 50 * t(0.8)) * env(int(0.8 * SR), 0.001, 6) + bandnoise(int(0.8 * SR), 80, 3000) * env(int(0.8 * SR), 0.001, 20)
 write("powerout", norm(wh * 0.4 + cl))
-
-# menu drone loop (8 s)
-x = t(8.0)
-dr = sum(np.sin(2 * np.pi * f * x + p) for f, p in [(55, 0), (55.6, 1), (82.4, 2), (110.3, 0.5)])
-dr *= 0.7 + 0.3 * np.sin(2 * np.pi * x / 8.0) ** 2
-write("menu", norm(dr * 0.6 + bandnoise(len(x), 2000, 8000) * 0.08, 0.5))
 
 # ambient from the provided wav (re-encode only)
 if len(sys.argv) > 1:
