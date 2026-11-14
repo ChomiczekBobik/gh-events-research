@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Нет, я не Краковянин</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=PT+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ТИТУЛ -->
+  <section id="screen-title" class="screen active">
+    <h1 class="glitch" data-text="НЕТ, Я НЕ КРАКОВЯНИН">НЕТ, Я НЕ КРАКОВЯНИН</h1>
+    <p class="subtitle">Nie, nie jestem z Krakowa</p>
+    <div class="story">
+      <p>Краков ударил по Величке ядеркой.</p>
+      <p>Неделю город лежал под ядерной пылью. Теперь она осела.</p>
+      <p>Выжившие величане стекаются к твоему дому. Но не все, кто стучит в дверь, — свои.</p>
+      <p>Одни облучены и светятся изнутри. Другие — <b>краковяне-предатели</b>, которые притворяются местными.</p>
+    </div>
+    <button class="btn big" id="btn-start">ОТКРЫТЬ ГЛАЗОК</button>
+    <p class="hint">Звук и музыка включатся после нажатия · 🔊</p>
+  </section>
+
+  <!-- РАДИО / УТРО -->
+  <section id="screen-radio" class="screen">
+    <div class="radio-box">
+      <div class="radio-head">📻 РАДИО «СОЛЯНКА» · 87,6 FM · <span id="radio-day"></span></div>
+      <div id="radio-text" class="radio-text"></div>
+      <div id="morning-house" class="morning-house"></div>
+      <button class="btn" id="btn-night">НАСТУПАЕТ НОЧЬ →</button>
+    </div>
+  </section>
+
+  <!-- ИГРА -->
+  <section id="screen-game" class="screen">
+    <header class="topbar">
+      <span>НОЧЬ <b id="hud-day">1</b>/<b id="hud-maxday">5</b></span>
+      <span>🕯 <b id="hud-time">23:00</b></span>
+      <span>Проверки: <b id="hud-checks">0</b></span>
+      <span>У двери: <b id="hud-queue">0</b></span>
+      <button class="icon-btn" id="btn-mute" title="Звук">🔊</button>
+    </header>
+    <div class="game-main">
+      <div class="peephole-wrap">
+        <canvas id="view" width="160" height="160"></canvas>
+        <div class="visitor-name" id="visitor-name"></div>
+      </div>
+      <div class="panel">
+        <div class="dialog" id="dialog"></div>
+        <div class="clues" id="clues"></div>
+        <div class="tools" id="tools">
+          <button class="btn tool" data-tool="dose">📟 Дозиметр</button>
+          <button class="btn tool" data-tool="flash">🔦 Фонарик</button>
+          <button class="btn tool" data-tool="salt">🧂 Соль-тест</button>
+          <button class="btn tool" data-tool="ask">🗣 Вопрос</button>
+          <button class="btn tool" data-tool="docs">🪪 Документы</button>
+        </div>
+        <div class="verdict" id="verdict">
+          <button class="btn good" id="btn-let">ВПУСТИТЬ</button>
+          <button class="btn bad" id="btn-deny">ПРОГНАТЬ</button>
+        </div>
+        <button class="btn" id="btn-next" hidden>…</button>
+      </div>
+    </div>
+    <aside class="house">
+      <div class="house-title">🏠 В доме:</div>
+      <div id="house-list"></div>
+    </aside>
+  </section>
+
+  <!-- ФИНАЛ -->
+  <section id="screen-end" class="screen">
+    <h1 id="end-title"></h1>
+    <div class="story" id="end-text"></div>
+    <div class="stats" id="end-stats"></div>
+    <button class="btn big" id="btn-restart">ЕЩЁ РАЗ</button>
+  </section>
+
+</div>
+<div class="fx-grain"></div>
+<div class="fx-scan"></div>
+<div class="fx-vignette"></div>
+
+<script src="characters.js"></script>
+<script src="audio.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
