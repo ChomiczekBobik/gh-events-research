@@ -1,0 +1,101 @@
+:root {
+  --bg: #0b0505;
+  --ink: #e9dccb;
+  --dim: #8a7462;
+  --red: #c4231c;
+  --red-dark: #5a0f0b;
+  --green: #7dff6a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+body { font-family: 'PT Mono', monospace; font-size: 16px; overflow-x: hidden; }
+#app { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+
+.screen { display: none; width: 100%; max-width: 1000px; }
+.screen.active { display: block; animation: fadein .8s ease; }
+@keyframes fadein { from { opacity: 0; filter: blur(4px); } to { opacity: 1; filter: none; } }
+
+h1 { font-family: 'Press Start 2P', monospace; color: var(--red); text-align: center; line-height: 1.5;
+     font-size: clamp(18px, 4vw, 38px); text-shadow: 3px 3px 0 var(--red-dark); margin: 0 0 8px; }
+.subtitle { text-align: center; color: var(--dim); font-style: italic; margin: 0 0 32px; }
+.story { max-width: 640px; margin: 0 auto 32px; line-height: 1.6; }
+.story p { margin: 0 0 10px; }
+.story b { color: var(--red); }
+.hint { text-align: center; color: var(--dim); font-size: 13px; }
+#screen-title, #screen-end { text-align: center; }
+#screen-title .story, #screen-end .story { text-align: left; }
+
+.glitch { position: relative; animation: shake 6s infinite; }
+@keyframes shake {
+  0%, 92%, 100% { transform: none; }
+  93% { transform: translate(-3px, 1px) skewX(4deg); }
+  95% { transform: translate(3px, -1px); color: var(--ink); }
+  97% { transform: translate(-1px, 2px) skewX(-6deg); }
+}
+
+.btn { font-family: 'Press Start 2P', monospace; font-size: 11px; color: var(--ink); background: #1b0c0a;
+       border: 2px solid var(--ink); padding: 12px 14px; cursor: pointer; letter-spacing: 1px;
+       box-shadow: 4px 4px 0 var(--red-dark); transition: transform .05s; }
+.btn:hover:not(:disabled) { background: var(--red-dark); }
+.btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--red-dark); }
+.btn:disabled { opacity: .3; cursor: not-allowed; }
+.btn.big { font-size: 15px; padding: 18px 26px; }
+.btn.good { border-color: #b9d8a0; }
+.btn.bad { border-color: var(--red); color: #ffb3a8; }
+.icon-btn { background: none; border: none; font-size: 18px; cursor: pointer; }
+
+/* игра */
+.topbar { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; justify-content: space-between;
+          border-bottom: 2px solid var(--red-dark); padding-bottom: 8px; margin-bottom: 14px;
+          font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--dim); }
+.topbar b { color: var(--ink); }
+.game-main { display: grid; grid-template-columns: minmax(260px, 440px) 1fr; gap: 20px; align-items: start; }
+@media (max-width: 760px) { .game-main { grid-template-columns: 1fr; } }
+
+.peephole-wrap { position: relative; aspect-ratio: 1; width: 100%; }
+#view { width: 100%; height: 100%; image-rendering: pixelated; display: block; border-radius: 50%;
+        box-shadow: 0 0 0 10px #1a0d0a, 0 0 0 14px #3b231a, 0 0 60px rgba(196, 35, 28, .25); }
+.visitor-name { position: absolute; bottom: -6px; left: 0; right: 0; text-align: center;
+                font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--ink); text-shadow: 2px 2px 0 #000; }
+
+.panel { display: flex; flex-direction: column; gap: 12px; }
+.dialog { min-height: 96px; border: 2px solid var(--ink); background: #000; padding: 12px 14px; line-height: 1.5; }
+.dialog .who { color: var(--red); font-weight: bold; }
+.clues { display: flex; flex-direction: column; gap: 6px; min-height: 20px; }
+.clue { border-left: 3px solid var(--red); background: #160a08; padding: 6px 10px; font-size: 14px; animation: fadein .3s; }
+.clue .tag { color: var(--dim); }
+.tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.tools .btn { font-size: 9px; padding: 10px 6px; }
+.verdict { display: flex; gap: 12px; }
+.verdict .btn { flex: 1; font-size: 13px; padding: 16px; }
+
+.house { margin-top: 22px; border-top: 2px dashed var(--red-dark); padding-top: 10px; font-size: 14px; }
+.house-title { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--dim); margin-bottom: 6px; }
+#house-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.mate { background: #1a0d0a; border: 1px solid #3b231a; padding: 4px 8px; }
+.mate.dead { text-decoration: line-through; color: var(--dim); }
+
+/* радио */
+.radio-box { max-width: 720px; margin: 0 auto; border: 2px solid var(--ink); background: #000; padding: 22px; }
+.radio-head { font-family: 'Press Start 2P', monospace; font-size: 10px; color: var(--red); margin-bottom: 16px; }
+.radio-text { line-height: 1.6; min-height: 120px; white-space: pre-wrap; margin-bottom: 18px; }
+.radio-text .ev { display: block; margin: 6px 0; color: #ffcfc4; }
+.morning-house { margin-bottom: 18px; }
+.morning-house .row { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+                      border-bottom: 1px solid #2a1612; padding: 6px 0; }
+.morning-house .btn { font-size: 8px; padding: 6px 8px; box-shadow: 2px 2px 0 var(--red-dark); }
+
+.stats { margin: 0 auto 28px; max-width: 480px; text-align: left; line-height: 1.8; border: 1px solid #3b231a; padding: 12px 16px; }
+
+/* эффекты экрана */
+.fx-grain, .fx-scan, .fx-vignette { pointer-events: none; position: fixed; inset: 0; z-index: 50; }
+.fx-grain { inset: -50%; opacity: .09;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain .5s steps(4) infinite; }
+@keyframes grain {
+  0% { transform: translate(0, 0); } 25% { transform: translate(-5%, 3%); }
+  50% { transform: translate(4%, -6%); } 75% { transform: translate(-2%, 5%); } 100% { transform: translate(3%, -2%); }
+}
+.fx-scan { background: repeating-linear-gradient(transparent 0 2px, rgba(0, 0, 0, .25) 2px 3px); }
+.fx-vignette { background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .75) 100%); }
+body.flash-red .fx-vignette { background: radial-gradient(ellipse at center, rgba(196, 35, 28, .2) 30%, rgba(90, 0, 0, .9) 100%); }
